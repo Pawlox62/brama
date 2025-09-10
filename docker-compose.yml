@@ -1,0 +1,25 @@
+services:
+  gate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gate_app
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Warsaw
+    volumes:
+      - ./:/app:ro                   # config.yaml, whitelist.txt, gate_app.py
+      - ./odczyty:/app/odczyty       # zapisy ROI/CSV
+      - ./anpr.log:/app/anpr.log     # log do pliku
+      - /var/run/docker.sock:/var/run/docker.sock  # dostęp do Dockera hosta
+      - /shared/alprtmp:/shared/alprtmp
+    # sieć hosta bywa wygodna dla RTSP; jeśli nie chcesz hosta, usuń to i skonfiguruj routingi
+    network_mode: host
+
+  # (opcjonalnie) możesz też zbudować obraz ALPR raz:
+  alpr-build:
+    build:
+      context: .
+      dockerfile: Dockerfile.alpr
+    image: myopenalpr:local
+

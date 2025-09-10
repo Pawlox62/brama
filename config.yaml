@@ -1,0 +1,33 @@
+# Kamera (substream H.264 ~720p / 5–10 fps)
+RTSP_URL: "rtsp://192.168.51.93:554/Streaming/Channels/101"
+
+# URL bramy (GET)
+GATE_URL: "https://svr2.supla.org/direct/1657/K_fwA2ro7gfcaoou/open-close"
+
+# Przetwarzanie
+PROCESS_EVERY_N_FRAME: 3        # co którą klatkę liczyć
+CONFIRM_FRAMES: 2               # ile razy w 2 s musi się powtórzyć
+COOLDOWN_SECONDS: 20            # ignorowanie ponownych w tym czasie
+CROP_PAD: 6                     # margines przy wycinaniu (tu dla debug zapisu ROI)
+PLATE_REGEX: "^[A-Z0-9]{4,10}$" # wstępny wzór tablicy
+
+# OpenALPR (Docker)
+DOCKER_IMAGE: "myopenalpr:local"   # nazwa obrazu z Dockerfile
+DOCKER_USE_SUDO: false              # jeśli docker wymaga sudo, daj true
+ALPR_COUNTRY: "eu"                 # region rozpoznawania
+ALPR_CONFIDENCE_MIN: 89          # minimalne confidence (0–100)
+
+# Whitelist
+WHITELIST_FILE: "./whitelist.txt"
+WHITELIST_RELOAD_SEC: 15
+
+# Logi
+LOG_PATH: "./anpr.log"
+HEARTBEAT_SEC: 30
+HEALTHCHECK: false
+
+# rzadziej zapisuj pełne klatki dla tej samej tablicy
+SAVE_MIN_INTERVAL_SEC: 120       # np. 2 min
+SAVE_MIN_HASH_DIFF: 6            # 0-64; im wyżej, tym więcej zmian wymagane do nowego zapisu
+
+

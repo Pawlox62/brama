@@ -1,0 +1,23 @@
+# --- ALPR: minimalny obraz z binarką `alpr` ---
+FROM ubuntu:20.04
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential cmake git ca-certificates pkg-config \
+      libopencv-dev libjsoncpp-dev liblog4cplus-dev libcurl4-openssl-dev \
+      tesseract-ocr libtesseract-dev libleptonica-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt
+RUN git clone --depth=1 https://github.com/openalpr/openalpr.git
+
+WORKDIR /opt/openalpr/src
+RUN mkdir build && cd build && cmake .. && make -j"$(nproc)" && make install
+
+# biblioteki
+ENV LD_LIBRARY_PATH=/usr/local/lib
+RUN ldconfig
+
+# kontener ma po prostu żyć; alpr wywołujemy przez `docker exec`
+CMD ["tail", "-f", "/dev/null"]
+
