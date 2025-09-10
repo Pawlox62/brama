@@ -1,33 +1,55 @@
-# Kamera (substream H.264 ~720p / 5–10 fps)
-RTSP_URL: "rtsp://192.168.51.93:554/Streaming/Channels/101"
+# --- Kamera / FFmpeg (hot-reload) ---
+RTSP_URL: "rtsp://192.168.51.251:554/0"  # adres Twojej kamery
+FFMPEG_WIDTH: 1280                       # szerokość skalowania (-1 utrzyma proporcje)
+FFMPEG_FPS: 5                            # klatki/s pobierane z RTSP
+FFMPEG_QUALITY: 5                        # 2–7 (niżej = lepsza jakość/większy bitrate)
 
-# URL bramy (GET)
-GATE_URL: "https://svr2.supla.org/direct/1657/K_fwA2ro7gfcaoou/open-close"
+# --- Brama / webhook ---
+GATE_URL: "https://example.org/direct/xxx/open-close"  # GET przy otwarciu bramy (opcjonalnie)
 
-# Przetwarzanie
-PROCESS_EVERY_N_FRAME: 3        # co którą klatkę liczyć
-CONFIRM_FRAMES: 2               # ile razy w 2 s musi się powtórzyć
-COOLDOWN_SECONDS: 20            # ignorowanie ponownych w tym czasie
-CROP_PAD: 6                     # margines przy wycinaniu (tu dla debug zapisu ROI)
-PLATE_REGEX: "^[A-Z0-9]{4,10}$" # wstępny wzór tablicy
+# --- Pipeline / decyzje ---
+PROCESS_EVERY_N_FRAME: 1
+CONFIRM_FRAMES: 2
+CONFIRM_WINDOW_SEC: 1.0
+COOLDOWN_SECONDS: 20
+CROP_PAD: 6
+PLATE_REGEX: "^[A-Z0-9]{4,10}$"
 
-# OpenALPR (Docker)
-DOCKER_IMAGE: "myopenalpr:local"   # nazwa obrazu z Dockerfile
-DOCKER_USE_SUDO: false              # jeśli docker wymaga sudo, daj true
-ALPR_COUNTRY: "eu"                 # region rozpoznawania
-ALPR_CONFIDENCE_MIN: 89          # minimalne confidence (0–100)
+# --- OpenALPR (Docker) ---
+DOCKER_IMAGE: "pawloxdocker/alpr:latest"
+DOCKER_USE_SUDO: false
+ALPR_CONTAINER_NAME: "alprd"
 
-# Whitelist
+# Kraj rozpoznawania:
+# - "pl": docelowo Polska; jeśli w kontenerze nie ma pl.conf, kod automatycznie fallbackuje do "eu"
+# - "eu": ogólny profil europejski
+ALPR_COUNTRY: "eu"
+
+# Dodatkowe opcje ALPR (hot-reload):
+ALPR_DETECT_REGION: true       # false = próbuj OCR bez wykrycia regionu tablicy (luźniejsze testy)
+ALPR_CONFIDENCE_MIN: 85.0
+ALPR_EXTRA_ARGS: ""            # np. "--topn 20 --skip_region_confidence"
+
+# --- Whitelist (hot-reload, także zmiana ścieżki) ---
 WHITELIST_FILE: "./whitelist.txt"
 WHITELIST_RELOAD_SEC: 15
 
-# Logi
+# --- Logi / heartbeat ---
 LOG_PATH: "./anpr.log"
 HEARTBEAT_SEC: 30
 HEALTHCHECK: false
 
-# rzadziej zapisuj pełne klatki dla tej samej tablicy
-SAVE_MIN_INTERVAL_SEC: 120       # np. 2 min
-SAVE_MIN_HASH_DIFF: 6            # 0-64; im wyżej, tym więcej zmian wymagane do nowego zapisu
+# --- Zapisy pełnych klatek (de-duplikacja) ---
+SAVE_MIN_INTERVAL_SEC: 120
+SAVE_MIN_HASH_DIFF: 6
 
+# --- ROI (statyczne, środek kadru) ---
+ROI_REL_W: 0.65
+ROI_REL_H: 0.45
 
+# --- Debug / test frames ---
+SAVE_ALL_TEST_FRAMES: true
+TEST_FRAMES_DIR: "./test_frames"
+FULLSTREAM_DUMP_EVERY_SEC: 0   # 0 = wyłączone, np. 10 = co 10 s
+
+# Uwaga: program czyta config co ~2 s; natychmiastowy reload: `systemctl kill -s HUP brama`
