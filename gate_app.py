@@ -396,7 +396,17 @@ class FFMpegPipeGrabber(threading.Thread):
                         try:
                             self.q.put(img, timeout=0.01)
                         except queue.Full:
-                            logging.info("[VIDEO] kolejka pełna – klatka odrzucona")
+                            try:
+                                self.q.get_nowait()
+                            except queue.Empty:
+                                pass
+                            try:
+                                self.q.put_nowait(img)
+                            except queue.Full:
+                                pass
+                            if time.time() - last_warn > 5.0:
+                                logging.info("[VIDEO] kolejka pełna – usunięto najstarszą klatkę")
+                                last_warn = time.time()
                     else:
                         logging.info("[VIDEO] nieudany odczyt klatki (decode JPEG failed)")
                 else:
@@ -599,20 +609,32 @@ class Prefilter(threading.Thread):
         self.frame_id = 0
 
     def _atomic_write(self, path_tmp, path_final, img, ext):
-        # zapis do pliku tymczasowego
-        if ext in ("jpg", "jpeg"):
-            cv2.imwrite(path_tmp, img, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
-        else:
-            cv2.imwrite(path_tmp, img)
-        # fsync, aby dopchnąć na dysk/wolumin
         try:
-            fd = os.open(path_tmp, os.O_RDONLY)
-            os.fsync(fd)
-            os.close(fd)
+            # zapis do pliku tymczasowego
+            if ext in ("jpg", "jpeg"):
+                ok = cv2.imwrite(path_tmp, img, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+            else:
+                ok = cv2.imwrite(path_tmp, img)
+            if not ok:
+                raise IOError("cv2.imwrite returned False")
+            # fsync, aby dopchnąć na dysk/wolumin
+            try:
+                fd = os.open(path_tmp, os.O_RDONLY)
+                os.fsync(fd)
+                os.close(fd)
+            except Exception:
+                pass
+            # atomowe przeniesienie
+            os.replace(path_tmp, path_final)
+            return True
         except Exception:
-            pass
-        # atomowe przeniesienie
-        os.replace(path_tmp, path_final)
+            logging.exception(f"[ROI] zapis {path_final} nie powiódł się")
+            try:
+                if os.path.exists(path_tmp):
+                    os.remove(path_tmp)
+            except Exception:
+                pass
+            return False
 
     def run(self):
         while not self.stop_flag.is_set():
@@ -649,9 +671,11 @@ class Prefilter(threading.Thread):
             ext = (cfg.get("ALPR_IMAGE_FORMAT", "jpg") or "jpg").lower()
             if ext not in ("jpg", "jpeg", "png"): ext = "jpg"
             roi_name = f"roi_{int(ts*1000)}_{self.frame_id}.{ext}"
-            roi_tmp = os.path.join(ALPR_TMP_DIR, "." + roi_name + ".tmp")
+            # plik tymczasowy musi zachować rozszerzenie (cv2 opiera się na nim)
+            roi_tmp = os.path.join(ALPR_TMP_DIR, f".tmp_{roi_name}")
             roi_path = os.path.join(ALPR_TMP_DIR, roi_name)
-            self._atomic_write(roi_tmp, roi_path, roi, ext)
+            if not self._atomic_write(roi_tmp, roi_path, roi, ext):
+                continue
 
             # debug: zapisz ROI i full
             if cfg.get("SAVE_ALL_TEST_FRAMES", True):
