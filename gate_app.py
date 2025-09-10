@@ -499,11 +499,17 @@ class AlprExec:
             return self._sudo()+["docker","exec", self.container, "bash","-lc",
                                  f"test -s /data/{shlex.quote(base)} && stat -c%s /data/{shlex.quote(base)} || echo 0"]
 
-        # Poczekaj aż plik „pojawi się” w kontenerze i będzie >0 B (do ~200 ms)
+        # Poczekaj aż plik „pojawi się” w kontenerze i będzie >0 B (do ~1 s)
         size_ok = False
-        for _ in range(10):
+        for _ in range(50):
             try:
-                rsz = subprocess.run(_size_cmd(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=0.3)
+                rsz = subprocess.run(
+                    _size_cmd(),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=0.3,
+                )
                 sz = int((rsz.stdout or "0").strip() or "0")
                 if sz > 0:
                     size_ok = True
@@ -514,6 +520,7 @@ class AlprExec:
 
         if not size_ok:
             logging.info(f"[ALPR] plik jeszcze niewidoczny lub pusty w kontenerze: {base}")
+            return []
 
         def _run_once(ctry):
             return subprocess.run(_alpr_cmd(ctry), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=timeout)
@@ -537,7 +544,10 @@ class AlprExec:
             time.sleep(0.04)
 
         if data is None:
-            logging.info(f"[ALPR] rc!=0 stderr='{last_err.strip()[:200]}'")
+            if "Unknown file type" in last_err or "Unsupported image type" in last_err:
+                logging.info(f"[ALPR] nierozpoznany format obrazu: {base}")
+            else:
+                logging.info(f"[ALPR] rc!=0 stderr='{last_err.strip()[:200]}'")
             return []
 
         out = []
