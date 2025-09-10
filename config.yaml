@@ -29,6 +29,8 @@ ALPR_COUNTRY: "eu"
 ALPR_DETECT_REGION: true       # false = próbuj OCR bez wykrycia regionu tablicy (luźniejsze testy)
 ALPR_CONFIDENCE_MIN: 85.0
 ALPR_EXTRA_ARGS: ""            # np. "--topn 20 --skip_region_confidence"
+# Wspólny katalog na pliki ROI; gdy uruchamiasz bez Dockera możesz ustawić np. "./alprtmp"
+# ALPR_TMP_DIR: "./alprtmp"
 
 # --- Whitelist (hot-reload, także zmiana ścieżki) ---
 WHITELIST_FILE: "./whitelist.txt"

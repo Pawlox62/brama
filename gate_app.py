@@ -423,8 +423,18 @@ class FFMpegPipeGrabber(threading.Thread):
 
 # -------------------- ALPR (Docker – kontener stały + exec; hot-reload) --------------------
 
-ALPR_TMP_DIR = os.environ.get("ALPR_TMP_DIR", "/shared/alprtmp")   # ścieżka w kontenerze app (bind mount)
 HOST_ALPR_TMP = os.environ.get("HOST_ALPR_TMP")                    # hostowa ścieżka; przekazywana z systemd
+_alpr_tmp_env = os.environ.get("ALPR_TMP_DIR")
+if _alpr_tmp_env:
+    ALPR_TMP_DIR = _alpr_tmp_env
+else:
+    # domyślnie używaj /shared/alprtmp (kontener), ale jeśli katalog nie
+    # istnieje (np. uruchomienie lokalne bez Dockera), przełącz na ./alprtmp
+    default_tmp = "/shared/alprtmp"
+    if os.path.isdir(default_tmp) or HOST_ALPR_TMP:
+        ALPR_TMP_DIR = default_tmp
+    else:
+        ALPR_TMP_DIR = os.path.abspath("./alprtmp")
 
 def ensure_dir(p):
     try: os.makedirs(p, exist_ok=True)
@@ -501,7 +511,7 @@ class AlprExec:
 
         # Poczekaj aż plik „pojawi się” w kontenerze i będzie >0 B (do ~1 s)
         size_ok = False
-        for _ in range(50):
+        for _ in range(150):  # zwiększono oczekiwanie do ~3 s
             try:
                 rsz = subprocess.run(
                     _size_cmd(),
@@ -978,6 +988,21 @@ def main():
     signal.signal(signal.SIGHUP, _on_hup)
 
     c = cfg_rel.get()
+
+    # Ustal finalny katalog tymczasowy dla ALPR (z cfg lub env)
+    global ALPR_TMP_DIR
+    alpr_tmp = os.environ.get("ALPR_TMP_DIR") or c.get("ALPR_TMP_DIR") or ALPR_TMP_DIR
+    try:
+        ensure_dir(alpr_tmp)
+        test_p = os.path.join(alpr_tmp, ".wtest")
+        with open(test_p, "wb") as _f: _f.write(b"0")
+        os.remove(test_p)
+        ALPR_TMP_DIR = alpr_tmp
+    except Exception:
+        fallback = os.path.abspath("./alprtmp")
+        ensure_dir(fallback)
+        ALPR_TMP_DIR = fallback
+    log_system(f"ALPR_TMP_DIR: {ALPR_TMP_DIR}")
 
     wl = FileWhitelist(c.get("WHITELIST_FILE", "./whitelist.txt"), c.get("WHITELIST_RELOAD_SEC", 15))
 
